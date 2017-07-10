@@ -1,0 +1,9 @@
+<table id="{{ dt_config.table_id }}" class="{% if class %}{{ class }}{% else %}table table-bordered table-hover{% endif %}">
+    <thead>
+        <tr>
+        {% for title in titles %}
+            <th>{{ title }}</th>
+        {% endfor %}
+        </tr>
+    </thead>
+</table>

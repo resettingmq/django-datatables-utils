@@ -1,0 +1,12 @@
+{% load datatables_widget %}
+<script type="text/javascript">
+    $(document).ready(function(){
+       var dt_inst = $("#{{ dt_config.table_id }}").DataTable({{ dt_config.get_dt_config|json }});
+        {% if dt_config.handle_row_click %}
+       dt_inst.on('click', 'tbody tr', function(){
+           var row_id = dt_inst.row(this).id();
+           window.location.href = {% detail_url "row_id" %};
+       });
+        {% endif %}
+    });
+</script>
