@@ -183,6 +183,12 @@ class ModelDataTableMetaClass(type):
 
 class ModelDataTable(metaclass=ModelDataTableMetaClass):
     dt_rowId = 'pk'
+    dt_serverSide = False
+    # serverSide为True的情况下，
+    # dt_ajax为None(ajax: null)的情况下，是对当前url发出ajax请求
+    # serverSide为False的情况下，
+    # 需要将dt_ajax设置为'.'或'./'来实现对当前url发出ajax请求
+    dt_ajax = './'
 
     @classmethod
     def get_query_fields(cls):

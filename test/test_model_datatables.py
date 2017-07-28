@@ -48,3 +48,8 @@ class ModelDataTableTestCase(TestCase):
         dt_column = DeclaredModelDataTable.columns['field_1']
         model_defiend_field = TestModel._meta.get_field('field_1')
         self.assertIs(dt_column._field, model_defiend_field)
+
+    def test_get_default_pk_column(self):
+        pk_column = DeclaredModelDataTable.pk_column
+        model_id_field = TestModel._meta.get_field('id')
+        self.assertIs(pk_column._field, model_id_field)
