@@ -183,12 +183,17 @@ class ModelDataTableMetaClass(type):
 
 class ModelDataTable(metaclass=ModelDataTableMetaClass):
     dt_rowId = 'pk'
+    dt_processing = True
     dt_serverSide = False
     # serverSide为True的情况下，
     # dt_ajax为None(ajax: null)的情况下，是对当前url发出ajax请求
     # serverSide为False的情况下，
     # 需要将dt_ajax设置为'.'或'./'来实现对当前url发出ajax请求
+    # 这个设置是必须的，否则很多情况下会报错（Cannot set property 'data' of null）
     dt_ajax = './'
+    # 设置datatables buttons
+    _default_buttons = ['show_disabled', 'cms_colvis']
+    dt_buttons = None
 
     @classmethod
     def get_query_fields(cls):
@@ -225,6 +230,22 @@ class ModelDataTable(metaclass=ModelDataTableMetaClass):
         """
         config = dict(cls.js_config)
         config['columns'] = cls.get_dt_config_columns()
+        # 因为在ModelDataTable的子类建立的时候（MetaClass处理过程)中，
+        # 访问不到_default_buttons，
+        # 所以对_default_buttons的处理放在类方法中
+        buttons = config.get('buttons')
+        if buttons and isinstance(buttons, list):
+            buttons = list(buttons)
+        else:
+            buttons = list()
+        buttons.extend(cls._default_buttons)
+        if not buttons:
+            # 在dt_buttons以及_default_buttons都为空的情况下，
+            # 删除buttons config项
+            # 避免对前端界面显示产生影响
+            del config['buttons']
+        else:
+            config['buttons'] = buttons
         return config
 
     @classmethod

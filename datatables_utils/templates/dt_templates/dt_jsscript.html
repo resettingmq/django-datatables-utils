@@ -1,12 +1,18 @@
 {% load datatables_widget %}
 <script type="text/javascript">
     $(document).ready(function(){
-       var dt_inst = $("#{{ dt_config.table_id }}").DataTable({{ dt_config.get_dt_config|json }});
+        var dt_config = {{ dt_config.get_dt_config|json }};
+        dt_config.initComplete = function(settings, config) {
+            dt_inst.buttons().container().appendTo(
+               $('.col-sm-6:eq(0)', dt_inst.table().container() )
+           );
+        };
+        var dt_inst = $("#{{ dt_config.table_id }}").DataTable(dt_config);
         {% if dt_config.handle_row_click %}
-       dt_inst.on('click', 'tbody tr', function(){
+        dt_inst.on('click', 'tbody tr', function(){
            var row_id = dt_inst.row(this).id();
            window.location.href = {% detail_url "row_id" %};
-       });
+        });
         {% endif %}
     });
 </script>

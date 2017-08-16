@@ -2,6 +2,9 @@ from functools import reduce
 from django.views import generic
 from django.http import JsonResponse
 from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
+from django.utils.module_loading import import_string
+
+from .utils import ModelDataTable
 
 
 class JsonContextMixin:
@@ -69,6 +72,9 @@ class DataTablesMixin(JsonResponseMixin, JsonContextMixin):
         #     return dt_column_fields
         return self.dt_config.get_query_fields()
 
+    def process_http_queryset(self, queryset):
+        pass
+
     def get_json_context_data(self, http_queryset=None):
         """
         : 依赖于其他class的get_queryset()方法
@@ -77,6 +83,7 @@ class DataTablesMixin(JsonResponseMixin, JsonContextMixin):
         """
         json_context = {}
 
+        self.process_http_queryset(http_queryset)
         dt_column_fields = self.get_dt_query_fields()
         queryset = self.get_queryset()
         if self.is_server_side():
@@ -121,7 +128,7 @@ class DataTablesMixin(JsonResponseMixin, JsonContextMixin):
 
         return super().get_json_context_data(**json_context)
 
-    def get_context_data(self, dt_config=None, **kwargs):
+    def get_context_data(self, **kwargs):
         """
         : 将ModelDataTables类添加进context
         : 需要依赖与其他class或者mixin
@@ -129,19 +136,54 @@ class DataTablesMixin(JsonResponseMixin, JsonContextMixin):
         :param kwargs: 额外的命名参数
         :return: context
         """
-        datatables_config = dt_config if dt_config is not None else self.get_dt_config()
-        datatables_id = datatables_config.table_id
-        kwargs.update(
-            dt_config=datatables_config,
-            dt_id=datatables_id
-        )
+        if 'dt_config' not in kwargs:
+            kwargs['dt_config'] = self.get_dt_config()
+
         return super().get_context_data(**kwargs)
 
 
-class DataTablesListView(DataTablesMixin, generic.ListView):
+class ModelDataTablesMixin(DataTablesMixin):
+    """
+    根据self.model中的相关属性配置DataTablesMixin属性
+    注意是动态生成，每次请求都应该被调用，
+    包括ajax请求
+    """
+    def config_datatables_from_model(self, dt_config=None):
+        if self.dt_config is not None:
+            return
+        try:
+            datatables_class = self.model.datatables_class
+        except AttributeError:
+            raise ImproperlyConfigured('No datatables class configured in {}:{}'
+                                       .format(self.model._meta.app_label, self.model._meta.verbose_name))
+        if isinstance(datatables_class, str):
+            try:
+                datatables_class = import_string(datatables_class)
+            except ImportError:
+                raise ImproperlyConfigured('Error in datatables configured in {}:{}'
+                                           .format(self.model._meta.app_label, self.model._meta.verbose_name))
+        if not issubclass(datatables_class, ModelDataTable):
+            raise ImproperlyConfigured('Improperly configured datatables_class attr in {}:{}'
+                                       .format(self.model._meta.app_label, self.model._meta.verbose_name))
+        self.dt_config = datatables_class
+
+    def get_context_data(self, **kwargs):
+        # 注意：这里也需要对kwargs中的dt_config参数进行判断
+        # 这样才能够与DatatablesMixin统一
+        # 同时在子类中才能够控制self.dt_config的生成获取
+        if 'dt_config' not in kwargs:
+            self.config_datatables_from_model()
+        return super().get_context_data(**kwargs)
+
+    def get_json_context_data(self, *args, **kwargs):
+        self.config_datatables_from_model()
+        return super().get_json_context_data(*args, **kwargs)
+
+
+class DataTablesListView(ModelDataTablesMixin, generic.ListView):
 
     def get(self, request, *args, **kwargs):
         if request.is_ajax():
             # if not self.dt_config.dt_serverSide:
-                return self.render_to_json_response(self.get_json_context_data(request.GET))
+            return self.render_to_json_response(self.get_json_context_data(request.GET))
         return super().get(request, *args, **kwargs)
