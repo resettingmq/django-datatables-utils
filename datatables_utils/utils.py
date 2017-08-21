@@ -29,6 +29,7 @@ class DataTablesColumn:
         self.title = title
         self.searchable = searchable
         self.orderable = orderable
+        self.width = width
         if field is not None:
             self._initialize_from_field(field)
         else:
@@ -49,12 +50,18 @@ class DataTablesColumn:
             self.title = field.verbose_name
         self._field = field
         self._bound = True
+        if field.is_relation:
+            # 如果指定的field为ForeignKey, OneToOne等relationship
+            # 则该列强制为不能搜索
+            self.searchable = False
 
     def get_dt_column_config(self):
         dt__column_config = {}
         dt__column_config.update(data=self.name)
         dt__column_config.update(searchable=self.searchable)
         dt__column_config.update(orderable=self.orderable)
+        if self.width is not None:
+            dt__column_config.update(width=self.width)
         return dt__column_config
 
     def get_filter_q_object(self, pattern, is_regex):
@@ -110,12 +117,15 @@ class ModelDataTableMetaClass(type):
         # todo: 实现从Fields中读取更多的配置信息，这里之实现了读取field_name
         meta_defined_columns = []
         field_names = getattr(meta, 'fields', [])
+        titles = getattr(meta, 'titles', {})
         for field_name in field_names:
             field = _get_field(model, field_name)
             if field is None:
                 continue
             dt_column = DataTablesColumn.get_instance_from_field(field)
             dt_column.name = field_name
+            if titles.get(field_name):
+                dt_column.title = titles.get(field_name)
             meta_defined_columns.append((field_name, dt_column))
         d['_meta_defined_columns'] = OrderedDict(meta_defined_columns)
 
@@ -137,9 +147,9 @@ class ModelDataTableMetaClass(type):
 
         # 处理js配置属性，dt_开头的类属性
         js_config = {}
-        for name, value in attrs.items():
-            if name.startswith('dt_'):
-                attr_name = name.split('dt_', 1)[1]
+        for fname, value in attrs.items():
+            if fname.startswith('dt_'):
+                attr_name = fname.split('dt_', 1)[1]
                 js_config[attr_name] = value
                 if attr_name == 'rowId' and value is not None:
                     if not isinstance(value, str):
@@ -169,10 +179,20 @@ class ModelDataTableMetaClass(type):
         # 生成table_id
         d['table_id'] = 'dt-{}'.format(model._meta.model_name)
 
+        # 处理Meta.width
+        width = getattr(meta, 'width', {})
+        for name, w in width.items():
+            if name in d['columns']:
+                d['columns'][name].width = w
+
         return super().__new__(mcls, name, bases, d)
 
     @classmethod
     def __prepare__(mcls, name, bases):
+        """
+        : 将父类中dt_属性拷贝到子类中，
+        : 能够保证父类中定义的dt_属性在子类建立时能够被MetaClass处理
+        """
         od = OrderedDict()
         for base in bases:
             for name, value in base.__dict__.items():
@@ -183,8 +203,8 @@ class ModelDataTableMetaClass(type):
 
 class ModelDataTable(metaclass=ModelDataTableMetaClass):
     dt_rowId = 'pk'
+    dt_serverSide = True
     dt_processing = True
-    dt_serverSide = False
     # serverSide为True的情况下，
     # dt_ajax为None(ajax: null)的情况下，是对当前url发出ajax请求
     # serverSide为False的情况下，
