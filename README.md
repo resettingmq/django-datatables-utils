@@ -216,4 +216,4 @@ class ClientDataTable(ModelDataTable):
 
 用于指定ajax请求的目标地址。
 
-默认为`ajax = './'`(即向当前页面请求)。
+默认为`dt_ajax = './'`(即向当前页面请求)。
